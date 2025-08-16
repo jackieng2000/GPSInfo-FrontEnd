@@ -14,6 +14,7 @@ const App = () => {
   const [password, setPassword] = useState('');
   const [userGroup, setUserGroup] = useState('');
   const [gpsRecords, setGpsRecords] = useState([]);
+  const [gpsHistory, setGpsHistory] = useState([]); // Store recent GPS data sent to backend
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState('Initializing GPS Tracker...');
@@ -23,6 +24,17 @@ const App = () => {
   // Clean host IP to remove http:// or https:// and trailing slashes
   const cleanHostIp = (input) => {
     return input.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  };
+
+  // Format timestamp to YYYY-MM-DD HH:MM:SS
+  const formatTimestamp = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   };
 
   // Handle login
@@ -40,6 +52,7 @@ const App = () => {
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh);
       localStorage.setItem('host_ip', cleanedHostIp);
+      localStorage.setItem('username', username); // Store username for GPS history
       setIsLoading(false);
       setHostIP('');
       setUsername('');
@@ -74,6 +87,15 @@ const App = () => {
 
       localStorage.removeItem('gpsData');
       setStatus('GPS data sent successfully');
+      // Add to GPS history with formatted timestamp and username
+      setGpsHistory((prev) => [
+        {
+          ...gpsData,
+          timestamp: formatTimestamp(new Date()),
+          username: localStorage.getItem('username') || 'N/A',
+        },
+        ...prev.slice(0, 4), // Keep only the last 5 entries
+      ]);
     } catch (error) {
       setStatus(`Error sending GPS data: ${error.message}`);
       localStorage.setItem('gpsData', JSON.stringify(gpsData));
@@ -188,10 +210,12 @@ const App = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('host_ip');
+    localStorage.removeItem('username');
     localStorage.removeItem('gpsData');
     setView('login');
     setUserGroup('');
     setGpsRecords([]);
+    setGpsHistory([]);
     setError('');
     setStatus('Initializing GPS Tracker...');
     setIsTracking(false);
@@ -201,6 +225,72 @@ const App = () => {
       gpsIntervalRef.current = null;
     }
   };
+
+  // Render GPS History Box
+  const renderGpsHistory = () => (
+    <div style={{ marginTop: '20px', maxWidth: '600px', margin: '0 auto' }}>
+      <h3>Latest GPS Data Sent</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f2f2f2' }}>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              User
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Timestamp
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Latitude
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Longitude
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Altitude
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Accuracy
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {gpsHistory.length > 0 ? (
+            gpsHistory.map((record, index) => (
+              <tr key={index}>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.username || 'N/A'}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.timestamp}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.latitude}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.longitude}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.altitude ?? 'N/A'}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.accuracy ?? 'N/A'}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td
+                colSpan="6"
+                style={{ textAlign: 'center', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}
+              >
+                No GPS data sent yet
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   // Render Login View
   const renderLogin = () => (
@@ -264,7 +354,7 @@ const App = () => {
 
   // Render GPSTracker View
   const renderTracker = () => (
-    <div style={{ padding: '20px', textAlign: 'center', maxWidth: '400px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
       <h2>GPS Tracker</h2>
       <p>{status}</p>
       <button
@@ -326,15 +416,17 @@ const App = () => {
       >
         Logout
       </button>
+      {renderGpsHistory()}
     </div>
   );
 
   // Render GPSReceive View
   const renderReceive = () => (
     <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h2>GPS Info Recording (React)</h2>
+      <h2>GPS Records for User Group</h2>
       <p>Tracking Status: {status}</p>
       {error && <p style={{ color: 'red' }}>{error}</p>}
+      {renderGpsHistory()}
       <form onSubmit={(e) => { e.preventDefault(); fetchGPSRecords(); }}>
         <div style={{ marginBottom: '15px' }}>
           <label htmlFor="userGroup">User Group</label>
@@ -366,31 +458,56 @@ const App = () => {
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
         <thead>
           <tr style={{ backgroundColor: '#f2f2f2' }}>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>User</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Latitude</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Longitude</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Timestamp</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Altitude</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Accuracy</th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              User
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Timestamp
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Latitude
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Longitude
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Altitude
+            </th>
+            <th style={{ border: '1px solid #ddd', padding: '8px', fontSize: '16px', '@media (max-width: 600px)': { fontSize: '12px' } }}>
+              Accuracy
+            </th>
           </tr>
         </thead>
         <tbody>
           {gpsRecords.length > 0 ? (
             gpsRecords.map((record) => (
               <tr key={record.username}>
-                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{record.username || 'N/A'}</td>
-                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{record.latitude}</td>
-                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{record.longitude}</td>
-                <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                  {new Date(record.timestamp).toLocaleString()}
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.username || 'N/A'}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{record.altitude ?? 'N/A'}</td>
-                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{record.accuracy ?? 'N/A'}</td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {formatTimestamp(new Date(record.timestamp))}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.latitude}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.longitude}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.altitude ?? 'N/A'}
+                </td>
+                <td style={{ border: '1px solid #ddd', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}>
+                  {record.accuracy ?? 'N/A'}
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="6" style={{ textAlign: 'center', padding: '8px' }}>
+              <td
+                colSpan="6"
+                style={{ textAlign: 'center', padding: '8px', fontSize: '14px', '@media (max-width: 600px)': { fontSize: '10px' } }}
+              >
                 No records available
               </td>
             </tr>
